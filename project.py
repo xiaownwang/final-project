@@ -16,6 +16,10 @@ from sklearn.calibration import CalibratedClassifierCV
 from sklearn.svm import LinearSVC
 from sklearn.pipeline import make_pipeline
 from sklearn.ensemble import GradientBoostingClassifier
+import tensorflow as tf
+from tensorflow.keras import layers, models
+from keras.layers import Input, Dense
+from keras.models import Model
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
 from warnings import simplefilter
@@ -74,7 +78,7 @@ except ValueError:
 
 
 ## Supervised Learning
-def supervised_model(X_train, X_test, y_train, y_test):
+def supervised_learning(X_train, X_test, y_train, y_test):
     t = time.time()
     model = SVC()
     model.fit(X_train, y_train)
@@ -90,7 +94,7 @@ def supervised_model(X_train, X_test, y_train, y_test):
     return y_pred
 
 print('\n----------------Supervised learning----------------')
-supervised_learning = supervised_model(X_train, X_test, y_train, y_test)
+supervised_learning = supervised_learning(X_train, X_test, y_train, y_test)
 
 
 
@@ -137,15 +141,11 @@ def co_training(X_train, X_test, y_train, y_test, num_iterations, n_unlabelled):
     X_view1, X_view2, y_view1, y_view2 = train_test_split(X_labelled, y_labelled, test_size=0.5, random_state=42)
 
     for i in range(num_iterations):
-        # 训练分类器1
-        clf1 = SVC()
+        clf1 = SVC()  # classifier 1
         clf1.fit(X_view1, y_view1)
-
-        # 训练分类器2
-        clf2 = SVC()
+        clf2 = SVC()  # classifier 2
         clf2.fit(X_view2, y_view2)
 
-        # 使用分类器1和分类器2对未标记样本进行预测
         y_pred_view1 = clf1.predict(X_unlabelled)
         y_pred_view2 = clf2.predict(X_unlabelled)
 
@@ -249,8 +249,46 @@ boost_99 = semi_boosting(X_train, y_train, X_test, y_test, 5, 0.99)
 
 
 ## Unsupervised Pretraining / Intrinsically Semi-supervised Learning
+def semi_pretraining(X_train, y_train, X_test, y_test, n_unlabelled):
+    t = time.time()
+    X_labelled, X_unlabelled, y_labelled, y_unlabelled = train_test_split(X_train, y_train, test_size=n_unlabelled, random_state=42)
 
+    # Autoencoder model for unsupervised pre-training
+    input_dim = X_unlabelled.shape[1]  # input size
+    encoding_dim = 128  # output size
+    input_layer = Input(shape=(input_dim,))  # 输入层
+    encoder = Dense(int(encoding_dim / 2), activation='relu')(input_layer)  # 隐藏层 hidden size小于input size, 压缩数据, 强加神经网络
+    decoder = Dense(input_dim, activation='sigmoid')(encoder)  # 输出层
+    autoencoder = Model(inputs=input_layer, outputs=decoder)
+    autoencoder.compile(optimizer='adam', loss='mse')
+    autoencoder.fit(X_unlabelled, X_unlabelled, epochs=10, batch_size=32)  # 循环5次
 
+    # Fine-tuning for supervised learning
+    encoder_layer = autoencoder.layers[1]  # 获取自编码器模型的编码器层
+    encoder_layer.trainable = False  # Freeze encoder's layers
+    classifier = layers.Dense(64, activation='relu')(encoder_layer.output)
+    classifier_output = layers.Dense(1, activation='sigmoid')(classifier)
+
+    # Create the supervised model
+    supervised_model = models.Model(inputs=encoder_layer.input, outputs=classifier_output)
+    supervised_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+    supervised_model.fit(X_labelled, y_labelled, epochs=10, batch_size=32)
+    y_pred = np.argmax(supervised_model.predict(X_test), axis=-1)
+
+    test_loss, test_acc = supervised_model.evaluate(X_test, y_test)  # accuracy
+    print("Accuracy Score of Unsupervised-pretraining Neural Network is:", test_acc)
+    f = f1_score(y_test, y_pred, average='micro', zero_division=1)  # f1
+    print("F1 Score of Unsupervised-pretraining Neural Network is:", f)
+    run_time = time.time() - t  # run runtime
+    print("Run time of Unsupervised-pretraining Neural Network is:", run_time, '\n')
+
+    return y_pred
+
+print('\n----------------Neural Network with Unsupervised Pretraining----------------')
+pretrain_50 = semi_pretraining(X_train, y_train, X_test, y_test, 0.5)
+pretrain_75 = semi_pretraining(X_train, y_train, X_test, y_test, 0.75)
+pretrain_90 = semi_pretraining(X_train, y_train, X_test, y_test, 0.90)
+pretrain_99 = semi_pretraining(X_train, y_train, X_test, y_test, 0.99)
 
 
 
@@ -279,9 +317,13 @@ labels = []
 y_pred_list = [supervised_learning,
                self_50, self_75, self_95, self_99,
                co_50, co_75, co_95, co_99,
-               boost_50, boost_75, boost_90, boost_99]
-labels = ['Supervised Model',
+               boost_50, boost_75, boost_90, boost_99,
+               pretrain_50, pretrain_75, pretrain_90, pretrain_99]
+labels = ['Supervised Learning',
           'Self_50', 'Self_75', 'Self_95', 'Self_99',
           'Co_50', 'Co_75', 'Co_95', 'Co_99',
-          'Boost_50', 'Boost_75', 'Boost_90', 'Boost_99']
+          'Boost_50', 'Boost_75', 'Boost_90', 'Boost_99',
+          'Pretrain_50', 'Pretrain_75', 'Pretrain_90', 'Pretrain_99']
 plot_roc_curve(y_test, y_pred_list, labels)
+
+
