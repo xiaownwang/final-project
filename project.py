@@ -161,11 +161,9 @@ def co_training(X_train, X_test, y_train, y_test, num_iterations, n_unlabelled):
         X_unlabelled = X_unlabelled.drop(index=remove_unlabelled.index, axis=0)
         y_unlabelled = y_unlabelled.drop(index=remove_unlabelled.index, axis=0)
 
-
     # 将视图1和视图2合并为完整的训练集
     X_train_co = np.concatenate((X_view1, X_view2))
     y_train_co = np.concatenate((y_view1, y_view2))
-
 
     # 在完整的训练集上训练最终的分类器
     clf_final = SVC()
@@ -233,11 +231,11 @@ def semi_boosting(X_train, y_train, X_test, y_test, num_iterations, n_unlabelled
     y_pred = final_model.predict(X_test)
 
     acc = accuracy_score(y_test, y_pred)  # accuracy
-    print("Accuracy Score of Self-training is:", acc)
+    print("Accuracy Score of Semi-boosting Ensemble is:", acc)
     f = f1_score(y_test, y_pred, average='micro', zero_division=1)  # f1
-    print("F1 Score of Self-training is:", f)
+    print("F1 Score of Semi-boosting Ensemble is:", f)
     run_time = time.time() - t  # run runtime
-    print("Run time of Self-training is:", run_time,'\n')
+    print("Run time of Semi-boosting Ensemble is:", run_time,'\n')
 
     return y_pred
 
