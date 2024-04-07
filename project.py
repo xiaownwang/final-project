@@ -26,8 +26,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 ## Data Preprocess
 df = pd.read_csv('bank-full.csv', sep=';')
-print(df.head().T)  # 查看特征
-print(df.info())  # 没有缺失值
+print(df.head().T)
+print(df.info())  # No default value
 
 # print(df['job'].unique())
 df[['default']] = df[['default']].replace(['no', 'yes'], [0, 1])
@@ -62,12 +62,12 @@ try:
     #输入的判断
     if choice==0:
         print('\nUsing Original Skewed Dataset')
-        print(Counter(y_train))  # 查看数据分布
+        print(Counter(y_train))
     else:
         print('\nUsing Balanced Dataset')
         print('----------------Resampling----------------')
-        print(Counter(y_train))  # 查看数据分布
-        smote = SMOTETomek(random_state=42)  # 过采样
+        print(Counter(y_train))
+        smote = SMOTETomek(random_state=42)
         smote_X, smote_y = smote.fit_resample(X_train, y_train)
         print(Counter(smote_y))
         X_train = smote_X
@@ -102,11 +102,11 @@ supervised_learning = supervised_learning(X_train, X_test, y_train, y_test)
 def self_training(X_train, X_test, y_train, y_test, n_unlabelled):
     t = time.time()
     y_train_self = y_train.copy()
-    rng = np.random.RandomState(42)  # 伪随机数生成器：用确定性的算法计算出来的似来自[0,1]均匀分布的随机数序列
-    random_unlabeled_points = rng.rand(y_train_self.shape[0]) < n_unlabelled  # 生成的y_train个伪随机数，小于0.3为Ture；大于0.3为False；30% unlabelled
-    y_train_self[random_unlabeled_points] = -1  # 小于0.3的Ture的；未知的label设置为-1
+    rng = np.random.RandomState(42)
+    random_unlabeled_points = rng.rand(y_train_self.shape[0]) < n_unlabelled
+    y_train_self[random_unlabeled_points] = -1
     print('The level of unlabelled data is', n_unlabelled)
-    # print(y_train.value_counts())  # 查看y_train数据分布
+    # print(y_train.value_counts())
 
     self_model = SVC(probability=True)
     self_training_model = SelfTrainingClassifier(self_model, threshold=0.95)
@@ -263,15 +263,15 @@ def semi_pretraining(X_train, y_train, X_test, y_test, n_unlabelled):
     # Autoencoder model for unsupervised pre-training
     input_dim = X_unlabelled.shape[1]  # input size
     encoding_dim = 128  # output size
-    input_layer = Input(shape=(input_dim,))  # 输入层
-    encoder = Dense(int(encoding_dim / 2), activation='relu')(input_layer)  # 隐藏层 hidden size小于input size, 压缩数据, 强加神经网络
-    decoder = Dense(input_dim, activation='sigmoid')(encoder)  # 输出层
+    input_layer = Input(shape=(input_dim,))
+    encoder = Dense(int(encoding_dim / 2), activation='relu')(input_layer)
+    decoder = Dense(input_dim, activation='sigmoid')(encoder)
     autoencoder = Model(inputs=input_layer, outputs=decoder)
     autoencoder.compile(optimizer='adam', loss='mse')
-    autoencoder.fit(X_unlabelled, X_unlabelled, epochs=10, batch_size=32)  # 循环5次
+    autoencoder.fit(X_unlabelled, X_unlabelled, epochs=10, batch_size=32)
 
     # Fine-tuning for supervised learning
-    encoder_layer = autoencoder.layers[1]  # 获取自编码器模型的编码器层
+    encoder_layer = autoencoder.layers[1]
     encoder_layer.trainable = False  # Freeze encoder's layers
     classifier = layers.Dense(64, activation='relu')(encoder_layer.output)
     classifier_output = layers.Dense(1, activation='sigmoid')(classifier)
