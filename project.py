@@ -5,17 +5,12 @@ import time
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import confusion_matrix, precision_score, recall_score, accuracy_score, f1_score
 from collections import Counter
 from imblearn.over_sampling import SMOTE
 from imblearn.combine import SMOTETomek
 from sklearn.semi_supervised import SelfTrainingClassifier
 from sklearn.svm import SVC
-from sklearn.calibration import CalibratedClassifierCV
-from sklearn.svm import LinearSVC
-from sklearn.pipeline import make_pipeline
-from sklearn.ensemble import GradientBoostingClassifier
 import tensorflow as tf
 from tensorflow.keras import layers, models
 from keras.layers import Input, Dense
@@ -31,8 +26,8 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 ## Data Preprocess
 df = pd.read_csv('bank-full.csv', sep=';')
-print(df.head().T)
-print(df.info())  # no default value
+print(df.head().T)  # 查看特征
+print(df.info())  # 没有缺失值
 
 # print(df['job'].unique())
 df[['default']] = df[['default']].replace(['no', 'yes'], [0, 1])
@@ -52,6 +47,11 @@ print(X.head().T)
 print(y)
 
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test = scaler.transform(X_test)
+y_train = y_train.values.ravel()
+
 
 
 ## Selector of Original Skewed Dataset or Balanced Dataset
@@ -59,15 +59,15 @@ print("--------Using Original Skewed Dataset: Please enter '0'---------",
       "\n--------Using Balanced Dataset by SMOTETomek: Please enter '1'---------\n")
 try:
     choice=int(input('Please enter a number:'))
-    # input a number
+    #输入的判断
     if choice==0:
         print('\nUsing Original Skewed Dataset')
-        print(Counter(y_train)) 
+        print(Counter(y_train))  # 查看数据分布
     else:
         print('\nUsing Balanced Dataset')
         print('----------------Resampling----------------')
-        print(Counter(y_train))
-        smote = SMOTETomek(random_state=42)  # resample
+        print(Counter(y_train))  # 查看数据分布
+        smote = SMOTETomek(random_state=42)  # 过采样
         smote_X, smote_y = smote.fit_resample(X_train, y_train)
         print(Counter(smote_y))
         X_train = smote_X
@@ -102,15 +102,13 @@ supervised_learning = supervised_learning(X_train, X_test, y_train, y_test)
 def self_training(X_train, X_test, y_train, y_test, n_unlabelled):
     t = time.time()
     y_train_self = y_train.copy()
-    rng = np.random.RandomState(42)
-    random_unlabeled_points = rng.rand(y_train_self.shape[0]) < n_unlabelled
-    y_train_self[random_unlabeled_points] = -1
+    rng = np.random.RandomState(42)  # 伪随机数生成器：用确定性的算法计算出来的似来自[0,1]均匀分布的随机数序列
+    random_unlabeled_points = rng.rand(y_train_self.shape[0]) < n_unlabelled  # 生成的y_train个伪随机数，小于0.3为Ture；大于0.3为False；30% unlabelled
+    y_train_self[random_unlabeled_points] = -1  # 小于0.3的Ture的；未知的label设置为-1
     print('The level of unlabelled data is', n_unlabelled)
-    # print(y_train.value_counts()) 
+    # print(y_train.value_counts())  # 查看y_train数据分布
 
-    # self_model = make_pipeline(CalibratedClassifierCV(LinearSVC()))  # to speed up the svc model
     self_model = SVC(probability=True)
-    # self_model = DecisionTreeClassifier()
     self_training_model = SelfTrainingClassifier(self_model, threshold=0.95)
     self_training_model.fit(X_train, y_train_self)
     y_pred = self_training_model.predict(X_test)
@@ -138,9 +136,9 @@ def co_training(X_train, X_test, y_train, y_test, num_iterations, n_unlabelled):
     t = time.time()
     print('The level of unlabelled data is', n_unlabelled)
     X_labelled, X_unlabelled, y_labelled, y_unlabelled = train_test_split(X_train, y_train, test_size=n_unlabelled, random_state=42)
-    X_classifier1, X_classifier2 = X_labelled.iloc[:, 0:16], X_labelled.iloc[:, 16:]
+    X_classifier1, X_classifier2 = X_labelled[:, 0:16], X_labelled[:, 16:]
     y_classifier1, y_classifier2 = y_labelled.copy(), y_labelled.copy()
-    X_unlabelled1, X_unlabelled2 = X_unlabelled.iloc[:, 0:16], X_unlabelled.iloc[:, 16:]
+    X_unlabelled1, X_unlabelled2 = X_unlabelled[:, 0:16], X_unlabelled[:, 16:]
 
     clf1 = SVC(probability=True)  # classifier 1
     clf2 = SVC(probability=True)  # classifier 2
@@ -151,28 +149,30 @@ def co_training(X_train, X_test, y_train, y_test, num_iterations, n_unlabelled):
         pseudo_prob1 = clf1.predict_proba(X_unlabelled1)
         pseudo_prob2 = clf2.predict_proba(X_unlabelled2)
 
-        # high confidence
+        # Get high-confidence pseudo labels
         threshold = 0.95  # Set confidence threshold
         high_confidence1 = np.max(pseudo_prob1, axis=1) > threshold  # high confidence indices 1
         X_high_confidence1, y_high_confidence1 = X_unlabelled2[high_confidence1], y_unlabelled[high_confidence1]
         high_confidence2 = np.max(pseudo_prob2, axis=1) > threshold  # high confidence indices 2
         X_high_confidence2, y_high_confidence2 = X_unlabelled1[high_confidence2], y_unlabelled[high_confidence2]
 
-        high_confidence_index = np.concatenate((X_high_confidence1.index, X_high_confidence2.index))
+
+
+        high_confidence_index = np.concatenate((np.where(high_confidence1)[0], np.where(high_confidence2)[0]))
         high_confidence_index = np.unique(high_confidence_index)
 
-        # add pseudo labels
+        # Add high-confidence pseudo labels
         X_classifier1 = np.concatenate((X_classifier1, X_high_confidence2), axis=0)
         y_classifier1 = np.concatenate((y_classifier1, y_high_confidence2), axis=0)
         X_classifier2 = np.concatenate((X_classifier2, X_high_confidence1), axis=0)
         y_classifier2 = np.concatenate((y_classifier2, y_high_confidence1), axis=0)
 
-        X_unlabelled1 = X_unlabelled1.drop(index=high_confidence_index, axis=0)
-        X_unlabelled2 = X_unlabelled2.drop(index=high_confidence_index, axis=0)
-        y_unlabelled = y_unlabelled.drop(index=high_confidence_index, axis=0)
+        X_unlabelled1 = np.delete(X_unlabelled1, high_confidence_index, axis=0)
+        X_unlabelled2 = np.delete(X_unlabelled2, high_confidence_index, axis=0)
+        y_unlabelled = np.delete(y_unlabelled, high_confidence_index, axis=0)
 
-    y_pred1 = clf1.predict(X_test.iloc[:, 0:16])
-    y_pred2 = clf2.predict(X_test.iloc[:, 16:])
+    y_pred1 = clf1.predict(X_test[:, 0:16])
+    y_pred2 = clf2.predict(X_test[:, 16:])
     y_pred = np.array(  # ensemble predictions
         [y_pred1[i] if y_pred1[i] == y_pred2[i] else np.random.choice([y_pred1[i], y_pred2[i]]) for i in range(len(y_pred1))])
 
@@ -195,55 +195,54 @@ co_99 = co_training(X_train, X_test, y_train, y_test, num_iterations=2, n_unlabe
 
 
 ## Semi-supervised Ensemble
-def semi_boosting(X_train, y_train, X_test, y_test, num_iterations, n_unlabelled):
+def semi_boosting(X_train, y_train, X_test, y_test, n_estimators, n_unlabelled):
     t = time.time()
     print('The level of unlabelled data is', n_unlabelled)
-    X_labelled, X_unlabelled, y_labelled, y_unlabelled = train_test_split(X_train, y_train, test_size=n_unlabelled, random_state=42)
-    weights_train = np.ones(len(X_labelled)) / len(X_labelled)
+    X_labeled, X_unlabeled, y_labeled, y_unlabeled = train_test_split(X_train, y_train, test_size=n_unlabelled, random_state=42)
+    n_samples = X_labeled.shape[0]
+    weights = np.ones(n_samples) / n_samples
     models = []
-    weights = []
+    alphas = []
 
-    for j in range(num_iterations):
-        weak_learner = SVC(probability=True)
-        weak_learner.fit(X_labelled, y_labelled, sample_weight=weights_train)
-        weak_learner_pred = weak_learner.predict(X_labelled)
-        pseudo_prob = weak_learner.predict_proba(X_unlabelled)
+    for i in range(n_estimators):
+        clf = SVC(probability=True)
+        clf.fit(X_labeled, y_labeled)
+        y_pred = clf.predict(X_labeled)
 
-        # Update weights
-        errors = np.abs(weak_learner_pred - y_labelled)
-        error_rate = np.sum(errors * weights_train) / np.sum(weights_train)
-        beta = error_rate / (1 - error_rate)
-        weights_train *= np.power(beta, 1 - errors)  # reduce the weight of correct predictions
-        weight_basemodel = 0.25 * np.log((1 - error_rate) / error_rate)
+        misclassified_weight = np.sum(weights * (y_labeled != y_pred))
+        epsilon = misclassified_weight / np.sum(weights)  # error rate
+        alpha = 0.5 * np.log((1 - epsilon) / epsilon)  # weight of base classifier
 
-        models.append(weak_learner)  # Save model
-        weights.append(weight_basemodel)  # save weights
+        weights = weights * np.exp(-alpha * y_labeled * y_pred)  # update weight
+        weights /= np.sum(weights)
 
-        # high confidence
-        threshold = 0.95  # Set confidence threshold
-        high_confidence = np.max(pseudo_prob, axis=1) > threshold  # high confidence indices
-        X_high_confidence, y_high_confidence = X_unlabelled[high_confidence], y_unlabelled[high_confidence]
+        models.append(clf)
+        alphas.append(alpha)
 
-        # add pseudo lables
-        X_labelled = np.concatenate((X_labelled, X_high_confidence), axis=0)
-        y_labelled = np.concatenate((y_labelled, y_high_confidence), axis=0)
-        X_unlabelled = X_unlabelled.drop(index=X_high_confidence.index, axis=0)
-        y_unlabelled = y_unlabelled.drop(index=y_high_confidence.index, axis=0)
-        weights_train = np.concatenate((weights_train, np.random.choice(range(0, 1), size=y_high_confidence.shape[0])))
+        # Get high-confidence pseudo labels
+        y_unlabeled_pred = clf.predict(X_unlabeled)
+        confidence = np.abs(clf.predict_proba(X_unlabeled).max(axis=1))  # confidence level
+        pseudo_mask = confidence > 0.95
+        X_pseudo_labeled = X_unlabeled[pseudo_mask]
+        y_pseudo_labeled = y_unlabeled_pred[pseudo_mask]
+        # Update weight with pseudo labels
+        pseudo_weights = np.ones(len(X_pseudo_labeled)) * np.exp(alpha)  # weight: e^alpha
+        weights = np.concatenate([weights, pseudo_weights])
 
-    # Predict
-    y_pred = np.zeros(X_test.shape[0])
-    # Predict weighting each model
-    for i in range(len(models)):
-        y_pred += weights[i] * models[i].predict(X_test)
-    y_pred = np.array([1 if y_pred[x] > 0.5 else 0 for x in range(len(y_pred))])
+        # Add high-confidence pseudo labels
+        X_labeled = np.concatenate([X_labeled, X_pseudo_labeled])
+        y_labeled = np.concatenate([y_labeled, y_pseudo_labeled])
+        X_unlabeled = X_unlabeled[~pseudo_mask]
+
+    y_pred = np.sum([alpha * model.predict(X_test) for alpha, model in zip(alphas, models)], axis=0)
+    y_pred = np.sign(y_pred)
 
     acc = accuracy_score(y_test, y_pred)  # accuracy
     print("Accuracy Score of Semi-boosting Ensemble is:", acc)
     f = f1_score(y_test, y_pred, average='micro', zero_division=1)  # f1
     print("F1 Score of Semi-boosting Ensemble is:", f)
     run_time = time.time() - t  # run runtime
-    print("Run time of Semi-boosting Ensemble is:", run_time,'\n')
+    print("Run time of Semi-boosting Ensemble is:", run_time, '\n')
 
     return y_pred
 
@@ -264,15 +263,15 @@ def semi_pretraining(X_train, y_train, X_test, y_test, n_unlabelled):
     # Autoencoder model for unsupervised pre-training
     input_dim = X_unlabelled.shape[1]  # input size
     encoding_dim = 128  # output size
-    input_layer = Input(shape=(input_dim,))
-    encoder = Dense(int(encoding_dim / 2), activation='relu')(input_layer)
-    decoder = Dense(input_dim, activation='sigmoid')(encoder)
+    input_layer = Input(shape=(input_dim,))  # 输入层
+    encoder = Dense(int(encoding_dim / 2), activation='relu')(input_layer)  # 隐藏层 hidden size小于input size, 压缩数据, 强加神经网络
+    decoder = Dense(input_dim, activation='sigmoid')(encoder)  # 输出层
     autoencoder = Model(inputs=input_layer, outputs=decoder)
     autoencoder.compile(optimizer='adam', loss='mse')
-    autoencoder.fit(X_unlabelled, X_unlabelled, epochs=10, batch_size=32)
+    autoencoder.fit(X_unlabelled, X_unlabelled, epochs=10, batch_size=32)  # 循环5次
 
     # Fine-tuning for supervised learning
-    encoder_layer = autoencoder.layers[1]
+    encoder_layer = autoencoder.layers[1]  # 获取自编码器模型的编码器层
     encoder_layer.trainable = False  # Freeze encoder's layers
     classifier = layers.Dense(64, activation='relu')(encoder_layer.output)
     classifier_output = layers.Dense(1, activation='sigmoid')(classifier)
@@ -281,7 +280,8 @@ def semi_pretraining(X_train, y_train, X_test, y_test, n_unlabelled):
     supervised_model = models.Model(inputs=encoder_layer.input, outputs=classifier_output)
     supervised_model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
     supervised_model.fit(X_labelled, y_labelled, epochs=10, batch_size=32)
-    y_pred = np.argmax(supervised_model.predict(X_test), axis=-1)
+    y_pred = supervised_model.predict(X_test)
+    y_pred = np.round(y_pred)
 
     test_loss, test_acc = supervised_model.evaluate(X_test, y_test)  # accuracy
     print("Accuracy Score of Unsupervised-pretraining Neural Network is:", test_acc)
@@ -314,7 +314,7 @@ def plot_roc_curve(y_test, y_pred_list, labels):
     plt.ylim([0.0, 1.05])
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
-    plt.title('Receiver Operating Characteristic (ROC) Curve')
+    plt.title('ROC Curve')
     plt.legend(loc="lower right")
     plt.show()
 
