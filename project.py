@@ -86,7 +86,7 @@ def supervised_learning(X_train, X_test, y_train, y_test):
 
     acc = accuracy_score(y_test, y_pred)  # accuracy
     print("Accuracy Score of Supervised Learning is:", acc)
-    f = f1_score(y_test, y_pred, average='micro', zero_division=1)  # f1
+    f = f1_score(y_test, y_pred)  # f1
     print("F1 Score of Supervised Learning is:", f)
     run_time = time.time() - t  # runtime
     print("Run time of Supervised Learning is:", run_time,'\n')
@@ -115,7 +115,7 @@ def self_training(X_train, X_test, y_train, y_test, n_unlabelled):
 
     acc = accuracy_score(y_test, y_pred)  # accuracy
     print("Accuracy Score of Self-training is:", acc)
-    f = f1_score(y_test, y_pred, average='micro', zero_division=1)  # f1
+    f = f1_score(y_test, y_pred)  # f1
     print("F1 Score of Self-training is:", f)
     run_time = time.time() - t  # run runtime
     print("Run time of Self-training is:", run_time,'\n')
@@ -178,7 +178,7 @@ def co_training(X_train, X_test, y_train, y_test, num_iterations, n_unlabelled):
 
     acc = accuracy_score(y_test, y_pred)  # accuracy
     print("Accuracy Score of Co-training is:", acc)
-    f = f1_score(y_test, y_pred, average='micro', zero_division=1)  # f1
+    f = f1_score(y_test, y_pred)  # f1
     print("F1 Score of Co-training is:", f)
     run_time = time.time() - t  # run runtime
     print("Run time of Co-training is:", run_time, '\n')
@@ -239,7 +239,7 @@ def semi_boosting(X_train, y_train, X_test, y_test, n_estimators, n_unlabelled):
 
     acc = accuracy_score(y_test, y_pred)  # accuracy
     print("Accuracy Score of Semi-boosting Ensemble is:", acc)
-    f = f1_score(y_test, y_pred, average='micro', zero_division=1)  # f1
+    f = f1_score(y_test, y_pred)  # f1
     print("F1 Score of Semi-boosting Ensemble is:", f)
     run_time = time.time() - t  # run runtime
     print("Run time of Semi-boosting Ensemble is:", run_time, '\n')
@@ -285,7 +285,7 @@ def semi_pretraining(X_train, y_train, X_test, y_test, n_unlabelled):
 
     test_loss, test_acc = supervised_model.evaluate(X_test, y_test)  # accuracy
     print("Accuracy Score of Unsupervised-pretraining Neural Network is:", test_acc)
-    f = f1_score(y_test, y_pred, average='micro', zero_division=1)  # f1
+    f = f1_score(y_test, y_pred)  # f1
     print("F1 Score of Unsupervised-pretraining Neural Network is:", f)
     run_time = time.time() - t  # run runtime
     print("Run time of Unsupervised-pretraining Neural Network is:", run_time, '\n')
