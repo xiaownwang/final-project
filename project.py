@@ -264,7 +264,7 @@ def semi_pretraining(X_train, y_train, X_test, y_test, n_unlabelled):
     # Autoencoder model for unsupervised pre-training
     input_dim = X_unlabelled.shape[1]  # input size
     encoding_dim = 128  # output size
-    input_layer = Input(shape=(input_dim,))  # 输入层
+    input_layer = Input(shape=(input_dim,))
     encoder = Dense(int(encoding_dim / 2), activation='relu')(input_layer)
     decoder = Dense(input_dim, activation='sigmoid')(encoder)
     autoencoder = Model(inputs=input_layer, outputs=decoder)
