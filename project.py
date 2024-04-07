@@ -59,7 +59,7 @@ print("--------Using Original Skewed Dataset: Please enter '0'---------",
       "\n--------Using Balanced Dataset by SMOTETomek: Please enter '1'---------\n")
 try:
     choice=int(input('Please enter a number:'))
-    #输入的判断
+    # Enter a number
     if choice==0:
         print('\nUsing Original Skewed Dataset')
         print(Counter(y_train))
