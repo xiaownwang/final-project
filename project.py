@@ -26,6 +26,8 @@ import warnings
 simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
+
+
 ## Data Preprocess
 df = pd.read_csv('bank-full.csv', sep=';')
 print(df.head().T)
@@ -55,6 +57,8 @@ X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 y_train = y_train.values.ravel()
 
+
+
 ## Selector of Original Skewed Dataset or Balanced Dataset
 print("--------Using Original Skewed Dataset: Please enter '0'---------",
       "\n--------Using Balanced Dataset by SMOTETomek: Please enter '1'---------\n")
@@ -75,6 +79,7 @@ try:
         y_train = smote_y
 except ValueError:
     print('\nEnter wrong number. Please rerun the program')
+
 
 
 ## Supervised Learning
@@ -253,6 +258,8 @@ boost_90 = semi_boosting(X_train, y_train, X_test, y_test, 2, 0.90)
 boost_99 = semi_boosting(X_train, y_train, X_test, y_test, 2, 0.99)
 
 
+
+
 ## Unsupervised Pretraining / Stacked AutoEncoder Learning
 def semi_pretraining(X_train, y_train, X_test, y_test, n_unlabelled):
     t = time.time()
@@ -317,6 +324,8 @@ pretrain_90 = semi_pretraining(X_train, y_train, X_test, y_test, 0.90)
 pretrain_99 = semi_pretraining(X_train, y_train, X_test, y_test, 0.99)
 
 
+
+
 ## Draw ROC Curve
 def plot_roc_curve(y_test, y_pred_list, labels):
     plt.figure(figsize=(8, 6))
@@ -333,7 +342,6 @@ def plot_roc_curve(y_test, y_pred_list, labels):
     plt.title('ROC Curve')
     plt.legend(loc="lower right")
     plt.show(block=True)
-
 
 # ROC curves for all models
 
