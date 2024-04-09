@@ -1,3 +1,4 @@
+import keras.optimizers
 import pandas
 import pandas as pd
 import numpy as np
@@ -9,19 +10,21 @@ from sklearn.metrics import confusion_matrix, precision_score, recall_score, acc
 from collections import Counter
 from imblearn.over_sampling import SMOTE
 from imblearn.combine import SMOTETomek
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.semi_supervised import SelfTrainingClassifier
 from sklearn.svm import SVC
 import tensorflow as tf
+from tensorflow import losses
 from tensorflow.keras import layers, models
-from keras.layers import Input, Dense
-from keras.models import Model
+from keras.layers import Input, Dense, Dropout, BatchNormalization
+from keras.models import Model, Sequential
 import matplotlib.pyplot as plt
 from sklearn.metrics import roc_curve, auc
 from warnings import simplefilter
 import warnings
+
 simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
-
 
 ## Data Preprocess
 df = pd.read_csv('bank-full.csv', sep=';')
@@ -32,8 +35,9 @@ print(df.info())  # No default value
 df[['default']] = df[['default']].replace(['no', 'yes'], [0, 1])
 df[['housing']] = df[['housing']].replace(['yes', 'no'], [1, 0])
 df[['loan']] = df[['loan']].replace(['no', 'yes'], [0, 1])
-df[['month']] = df[['month']].replace(['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'],
-                                      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+df[['month']] = df[['month']].replace(
+    ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'],
+    [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
 df[['y']] = df[['y']].replace(['no', 'yes'], [0, 1])
 
 # categorical data -- one hot encoding
@@ -51,15 +55,13 @@ X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 y_train = y_train.values.ravel()
 
-
-
 ## Selector of Original Skewed Dataset or Balanced Dataset
 print("--------Using Original Skewed Dataset: Please enter '0'---------",
       "\n--------Using Balanced Dataset by SMOTETomek: Please enter '1'---------\n")
 try:
-    choice=int(input('Please enter a number:'))
+    choice = int(input('Please enter a number:'))
     # Enter a number
-    if choice==0:
+    if choice == 0:
         print('\nUsing Original Skewed Dataset')
         print(Counter(y_train))
     else:
@@ -73,7 +75,6 @@ try:
         y_train = smote_y
 except ValueError:
     print('\nEnter wrong number. Please rerun the program')
-
 
 
 ## Supervised Learning
@@ -252,60 +253,68 @@ boost_90 = semi_boosting(X_train, y_train, X_test, y_test, 2, 0.90)
 boost_99 = semi_boosting(X_train, y_train, X_test, y_test, 2, 0.99)
 
 
-
-
 ## Unsupervised Pretraining / Stacked AutoEncoder Learning
 def semi_pretraining(X_train, y_train, X_test, y_test, n_unlabelled):
     t = time.time()
-    X_labelled, X_unlabelled, y_labelled, y_unlabelled = train_test_split(X_train, y_train, test_size=n_unlabelled, random_state=42)
+    X_labelled, X_unlabelled, y_labelled, y_unlabelled = train_test_split(X_train, y_train, test_size=n_unlabelled,
+                                                                          random_state=42)
+    # encoder
+    input_layer = Input(shape=(X_unlabelled.shape[1],))
+    encoder = Dense(64, activation='relu')(input_layer)
+    encoder = BatchNormalization()(encoder)
+    encoder = Dense(32, activation='relu')(encoder)
+    encoder = BatchNormalization()(encoder)
+    encoder = Dense(16, activation='relu')(encoder)
+    # decoder
+    decoder = Dense(32, activation='relu')(encoder)
+    decoder = BatchNormalization()(decoder)
+    decoder = Dense(64, activation='relu')(decoder)
+    decoder = BatchNormalization()(decoder)
+    decoder = Dense(X_unlabelled.shape[1], activation='sigmoid')(decoder)
 
-    # Stacked Autoencoder for supervised learning
-    input_dim = X_unlabelled.shape[1]
-    encoding_dims = 128
-    activation = 'relu'
+    stacked_autoencoder = Model(input_layer, decoder)
+    stacked_autoencoder.compile(optimizer='adam', loss='mse')
 
-    encoder_input = layers.Input(shape=(input_dim,))
-    x = encoder_input
-    for dim in range(encoding_dims + 1):
-        x = layers.Dense(dim, activation=activation)(x)
-    encoder_output = x
-    encoder = models.Model(encoder_input, encoder_output)
+    history = stacked_autoencoder.fit(X_unlabelled, X_unlabelled, epochs=10, batch_size=32, shuffle=True,
+                                      validation_data=(X_test, X_test))
 
-    decoder_input = layers.Input(shape=(encoding_dims,))
-    x = decoder_input
-    for dim in range(encoding_dims, input_dim):
-        x = layers.Dense(dim, activation=activation)(x)
-    decoder_output = layers.Dense(input_dim, activation='sigmoid')(x)
-    decoder = models.Model(decoder_input, decoder_output)
+    encoder = Model(stacked_autoencoder.input, stacked_autoencoder.layers[3].output)
+    encoded_X_Train = encoder.predict(X_train)
+    encoded_X_Test = encoder.predict(X_test)
 
-    autoencoder_input = layers.Input(shape=(input_dim,))
-    encoded = encoder(autoencoder_input)
-    decoded = decoder(encoded)
-    autoencoder = models.Model(autoencoder_input, decoded, name='autoencoder')
+    model = Sequential()
+    model.add(Dense(32, activation='relu', input_shape=(encoded_X_Train.shape[1],)))
+    model.add(BatchNormalization())
+    model.add(Dropout(0.2))
+    model.add(Dense(16, activation='relu'))
+    model.add(BatchNormalization())
+    model.add(Dense(1, activation='sigmoid'))
 
-    autoencoder.compile(optimizer='adam', loss='binary_crossentropy')
-    autoencoder.fit(X_unlabelled, X_unlabelled, epochs=1, batch_size=32, validation_split=0.2)
-    y_pred = encoder.predict(X_test)
-    y_pred = decoder.predict(y_pred)
-    # Create the supervised model
-    reconstruction_error = autoencoder.evaluate(X_test, X_test)
-    print("Reconstruction Error on test set:", reconstruction_error)
-    # test_loss, test_acc = autoencoder.evaluate(X_test, y_test)  # accuracy
-    # print("Accuracy Score of Unsupervised-pretraining Neural Network is:", test_acc)
-    # f = f1_score(y_test, y_pred)  # f1
-    # print("F1 Score of Unsupervised-pretraining Neural Network is:", f)
+    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
 
+    model.fit(encoded_X_Train, y_train, epochs=10, batch_size=32, shuffle=True)
+
+    loss, acc = model.evaluate(encoded_X_Test, y_test)
+    y_pred = model.predict(encoded_X_Test)
+    y_pred = np.where(y_pred > 0.5, 1, 0)
+    print("Accuracy Score of Unsupervised Pretraining is:", acc)
+    f = f1_score(y_test, y_pred)  # f1
+    print("F1 Score of Unsupervised Pretraining is:", f)
     run_time = time.time() - t  # run runtime
-    print("Run time of Unsupervised-pretraining Neural Network is:", run_time, '\n')
+    print("Run time of unsupervised pretraining is:", run_time, '\n')
+    reconstructed = stacked_autoencoder.predict(X_test)
+
+    # 计算MSE
+    mse = np.mean(np.square(X_test - reconstructed))
+    print(f'Mean Squared Error: {mse}')
     return y_pred
+
 
 print('\n----------------Neural Network with Unsupervised Pretraining----------------')
 pretrain_50 = semi_pretraining(X_train, y_train, X_test, y_test, 0.5)
 pretrain_75 = semi_pretraining(X_train, y_train, X_test, y_test, 0.75)
 pretrain_90 = semi_pretraining(X_train, y_train, X_test, y_test, 0.90)
 pretrain_99 = semi_pretraining(X_train, y_train, X_test, y_test, 0.99)
-
-
 
 
 ## Draw ROC Curve
@@ -326,17 +335,18 @@ def plot_roc_curve(y_test, y_pred_list, labels):
     plt.show(block=True)
     plt.savefig('roc_curve.png')
 
+
 # ROC curves for all models
-y_pred_list = []  # List to store predicted probabilities for each model
-labels = []
+
 # print(Counter(supervised_learning))
 y_pred_list = [supervised_learning,
                self_50, self_75, self_95, self_99,
                co_50, co_75, co_95, co_99,
-               boost_50, boost_75, boost_90, boost_99]
+               boost_50, boost_75, boost_90, boost_99,
+                   pretrain_50, pretrain_75, pretrain_90, pretrain_99]
 labels = ['Supervised Learning',
           'Self_50', 'Self_75', 'Self_95', 'Self_99',
           'Co_50', 'Co_75', 'Co_95', 'Co_99',
-          'Boost_50', 'Boost_75', 'Boost_90', 'Boost_99',]
+          'Boost_50', 'Boost_75', 'Boost_90', 'Boost_99',
+            'pretrain_50', 'pretrain_75', 'pretrain_90', 'pretrain_99']
 plot_roc_curve(y_test, y_pred_list, labels)
-
