@@ -333,7 +333,6 @@ def plot_roc_curve(y_test, y_pred_list, labels):
     plt.title('ROC Curve')
     plt.legend(loc="lower right")
     plt.show(block=True)
-    plt.savefig('roc_curve.png')
 
 
 # ROC curves for all models
@@ -343,10 +342,10 @@ y_pred_list = [supervised_learning,
                self_50, self_75, self_95, self_99,
                co_50, co_75, co_95, co_99,
                boost_50, boost_75, boost_90, boost_99,
-                   pretrain_50, pretrain_75, pretrain_90, pretrain_99]
+               pretrain_50, pretrain_75, pretrain_90, pretrain_99]
 labels = ['Supervised Learning',
           'Self_50', 'Self_75', 'Self_95', 'Self_99',
           'Co_50', 'Co_75', 'Co_95', 'Co_99',
           'Boost_50', 'Boost_75', 'Boost_90', 'Boost_99',
-            'pretrain_50', 'pretrain_75', 'pretrain_90', 'pretrain_99']
+          'pretrain_50', 'pretrain_75', 'pretrain_90', 'pretrain_99']
 plot_roc_curve(y_test, y_pred_list, labels)
