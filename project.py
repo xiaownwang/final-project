@@ -26,8 +26,6 @@ import warnings
 simplefilter(action='ignore', category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-
-
 ## Data Preprocess
 df = pd.read_csv('bank-full.csv', sep=';')
 print(df.head().T)
@@ -57,9 +55,6 @@ X_train = scaler.fit_transform(X_train)
 X_test = scaler.transform(X_test)
 y_train = y_train.values.ravel()
 
-
-
-
 ## Selector of Original Skewed Dataset or Balanced Dataset
 print("--------Using Original Skewed Dataset: Please enter '0'---------",
       "\n--------Using Balanced Dataset by SMOTETomek: Please enter '1'---------\n")
@@ -80,7 +75,6 @@ try:
         y_train = smote_y
 except ValueError:
     print('\nEnter wrong number. Please rerun the program')
-
 
 
 ## Supervised Learning
@@ -129,9 +123,10 @@ def self_training(X_train, X_test, y_train, y_test, n_unlabelled):
     return y_pred
 
 print('\n----------------Self-training----------------')
-self_50 = self_training(X_train, X_test, y_train, y_test, 0.5)  #  50% unlabelled data
+self_50 = self_training(X_train, X_test, y_train, y_test, 0.50)  #  50% unlabelled data
 self_75 = self_training(X_train, X_test, y_train, y_test, 0.75)  #  75% unlabelled data
-self_95 = self_training(X_train, X_test, y_train, y_test, 0.95)  #  90% unlabelled data
+self_90 = self_training(X_train, X_test, y_train, y_test, 0.90)  #  90% unlabelled data
+self_95 = self_training(X_train, X_test, y_train, y_test, 0.95)  #  95% unlabelled data
 self_99 = self_training(X_train, X_test, y_train, y_test, 0.99)  #  99% unlabelled data
 
 
@@ -192,9 +187,10 @@ def co_training(X_train, X_test, y_train, y_test, num_iterations, n_unlabelled):
     return y_pred
 
 print('\n----------------Co-training----------------')
-co_50 = co_training(X_train, X_test, y_train, y_test, num_iterations=2, n_unlabelled=0.5)
+co_50 = co_training(X_train, X_test, y_train, y_test, num_iterations=2, n_unlabelled=0.50)
 co_75 = co_training(X_train, X_test, y_train, y_test, num_iterations=2, n_unlabelled=0.75)
-co_95 = co_training(X_train, X_test, y_train, y_test, num_iterations=2, n_unlabelled=0.90)
+co_90 = co_training(X_train, X_test, y_train, y_test, num_iterations=2, n_unlabelled=0.90)
+co_95 = co_training(X_train, X_test, y_train, y_test, num_iterations=2, n_unlabelled=0.95)
 co_99 = co_training(X_train, X_test, y_train, y_test, num_iterations=2, n_unlabelled=0.99)
 
 
@@ -253,12 +249,11 @@ def semi_boosting(X_train, y_train, X_test, y_test, n_estimators, n_unlabelled):
     return y_pred
 
 print('\n----------------Semi-supervised Ensemble----------------')
-boost_50 = semi_boosting(X_train, y_train, X_test, y_test, 2, 0.5)
+boost_50 = semi_boosting(X_train, y_train, X_test, y_test, 2, 0.50)
 boost_75 = semi_boosting(X_train, y_train, X_test, y_test, 2, 0.75)
 boost_90 = semi_boosting(X_train, y_train, X_test, y_test, 2, 0.90)
+boost_95 = semi_boosting(X_train, y_train, X_test, y_test, 2, 0.95)
 boost_99 = semi_boosting(X_train, y_train, X_test, y_test, 2, 0.99)
-
-
 
 
 ## Unsupervised Pretraining / Stacked AutoEncoder Learning
@@ -319,12 +314,11 @@ def semi_pretraining(X_train, y_train, X_test, y_test, n_unlabelled):
 
 
 print('\n----------------Neural Network with Unsupervised Pretraining----------------')
-pretrain_50 = semi_pretraining(X_train, y_train, X_test, y_test, 0.5)
+pretrain_50 = semi_pretraining(X_train, y_train, X_test, y_test, 0.50)
 pretrain_75 = semi_pretraining(X_train, y_train, X_test, y_test, 0.75)
 pretrain_90 = semi_pretraining(X_train, y_train, X_test, y_test, 0.90)
+pretrain_95 = semi_pretraining(X_train, y_train, X_test, y_test, 0.95)
 pretrain_99 = semi_pretraining(X_train, y_train, X_test, y_test, 0.99)
-
-
 
 
 ## Draw ROC Curve
@@ -348,13 +342,13 @@ def plot_roc_curve(y_test, y_pred_list, labels):
 
 # print(Counter(supervised_learning))
 y_pred_list = [supervised_learning,
-               self_50, self_75, self_95, self_99,
-               co_50, co_75, co_95, co_99,
-               boost_50, boost_75, boost_90, boost_99,
-               pretrain_50, pretrain_75, pretrain_90, pretrain_99]
+               self_50, self_75, self_90, self_95, self_99,
+               co_50, co_75, co_90, co_95, co_99,
+               boost_50, boost_75, boost_90, boost_95, boost_99,
+               pretrain_50, pretrain_75, pretrain_90, pretrain_95, pretrain_99]
 labels = ['Supervised Learning',
-          'Self_50', 'Self_75', 'Self_95', 'Self_99',
-          'Co_50', 'Co_75', 'Co_95', 'Co_99',
-          'Boost_50', 'Boost_75', 'Boost_90', 'Boost_99',
-          'pretrain_50', 'pretrain_75', 'pretrain_90', 'pretrain_99']
+          'Self_50', 'Self_75', 'Self_90', 'Self_95', 'Self_99',
+          'Co_50', 'Co_75', 'Co_90', 'Co_95', 'Co_99',
+          'Boost_50', 'Boost_75', 'Boost_90', 'Boost_95', 'Boost_99',
+          'pretrain_50', 'pretrain_75', 'pretrain_90', 'pretrain_95', 'pretrain_99']
 plot_roc_curve(y_test, y_pred_list, labels)
